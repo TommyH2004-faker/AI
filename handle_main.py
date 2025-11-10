@@ -30,6 +30,7 @@ class HandleMain(HandlePageGetData, HandelPageTrain, HandlePageRun):
         self.push_training.clicked.connect(self.start_training)
         self.push_check_in.clicked.connect(self.check_in)
         self.push_check_out.clicked.connect(self.check_out)
+        self.push_export.clicked.connect(self.export_data)  # Kết nối nút xuất Excel
         
         self.radioButton.click()
         # Thiết đặt các kết nối khi nhấn các nút chuyển trang
@@ -112,7 +113,7 @@ class HandleMain(HandlePageGetData, HandelPageTrain, HandlePageRun):
             self.mode_cam = 'off'
 
             if self.cap == None:
-                self.cap = cv2.VideoCapture(0)
+                self.cap = cv2.VideoCapture(1)
                 if not self.cap.isOpened():
                     print("Không thể mở camera")
             self.timerr.timeout.connect(self.update_frame_run)

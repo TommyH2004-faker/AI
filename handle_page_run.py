@@ -1,5 +1,6 @@
 from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtWidgets import QMessageBox
 import numpy as np
 import cv2
 import cvzone
@@ -8,6 +9,8 @@ from ultralytics import YOLO
 from keras.api.models import load_model
 import pickle
 from check_and_save_img import CheckAndSaveImg
+from attendance_logger import AttendanceLogger
+import os
 
 face_model = YOLO(r'model/yolov11n-face.pt')
 
@@ -22,6 +25,7 @@ class HandlePageRun(Ui_MainWindow):
         self.timerr.start(30)  # Update every 30ms (approx 33 FPS)
 
         self.OJ = CheckAndSaveImg()
+        self.logger = AttendanceLogger()  # Thêm logger
         self.image_input= np.array([])
         self.name = None
         # Thiết lập kết nối các nút khi nhấn vào
@@ -33,16 +37,85 @@ class HandlePageRun(Ui_MainWindow):
         self.lb = []
         self.model_cnn = None
         # self.cap = cv2.VideoCapture(0)
+    
     def export_data(self):
-        pass
+        '''Xuất dữ liệu chấm công ra file Excel'''
+        try:
+            filepath = self.logger.export_to_excel()
+            if filepath:
+                # Hiển thị thông báo thành công
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Information)
+                msg.setWindowTitle("Xuất Excel Thành Công")
+                msg.setText(f"Đã xuất file Excel thành công!")
+                msg.setInformativeText(f"File được lưu tại:\n{os.path.abspath(filepath)}")
+                msg.setStandardButtons(QMessageBox.Ok)
+                msg.exec_()
+            else:
+                # Không có dữ liệu
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Warning)
+                msg.setWindowTitle("Không Có Dữ Liệu")
+                msg.setText("Không có dữ liệu chấm công để xuất!")
+                msg.setInformativeText("Vui lòng check in/out trước khi xuất Excel.")
+                msg.setStandardButtons(QMessageBox.Ok)
+                msg.exec_()
+        except Exception as e:
+            # Hiển thị lỗi
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setWindowTitle("Lỗi")
+            msg.setText(f"Có lỗi khi xuất Excel!")
+            msg.setInformativeText(str(e))
+            msg.setStandardButtons(QMessageBox.Ok)
+            msg.exec_()
 
     def check_in(self):
+        '''Check in: Chỉ lưu ảnh và thời gian vào, chưa log vào JSON'''
         if self.name != None and self.image_input.shape != (0, ):
             if not self.OJ.check_exists(label= self.name):
                 self.OJ.save_image(image_array= self.image_input, label= self.name)
+                print(f'✓ Check in: {self.name}')
         
     def check_out(self):
+        '''Check out: Lấy thời gian vào từ ảnh, lưu cả vào-ra vào JSON, rồi xóa ảnh'''
         if self.name != None and self.OJ.check_exists(label= self.name):
+            # Lấy thời gian check in từ ảnh đã lưu
+            time_in, img_array = self.OJ.get_data(label=self.name)
+            
+            # Lấy thời gian check out hiện tại
+            from datetime import datetime
+            now = datetime.now()
+            time_out = now.strftime("%H:%M:%S %d-%m-%Y")
+            
+            # Tính tổng giờ làm việc
+            try:
+                # Chuyển time_in từ "HH:MM:SS DD-MM-YYYY" sang datetime
+                check_in_time = datetime.strptime(time_in, "%H:%M:%S %d-%m-%Y")
+                check_out_time = datetime.strptime(time_out, "%H:%M:%S %d-%m-%Y")
+                duration = check_out_time - check_in_time
+                working_hours = round(duration.total_seconds() / 3600, 2)
+            except Exception as e:
+                print(f'Lỗi tính giờ: {e}')
+                working_hours = 0
+            
+            # Lưu vào JSON với đầy đủ thông tin
+            record = {
+                'name': self.name,
+                'date': now.strftime("%d-%m-%Y"),
+                'check_in': time_in,
+                'check_out': time_out,
+                'working_hours': working_hours,
+                'image_path': f'image_data/{self.name}'
+            }
+            
+            # Append vào data và save
+            self.logger.data.append(record)
+            self.logger.save_log()
+            
+            print(f'✓ Check out: {self.name} - Làm việc: {working_hours} giờ')
+            
+            # Xóa ảnh check in
             self.OJ.delete_image(label= self.name)
 
     # Phần này tương tự handel_page_run

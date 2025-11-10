@@ -6,3 +6,5 @@ tensorflow
 ultralytics
 cvzone
 keras
+pandas
+openpyxl

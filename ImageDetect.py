@@ -2,8 +2,8 @@ import cv2
 import os
 from ultralytics import YOLO
 import cv2
-from keras.api.layers import RandomBrightness, RandomContrast
-from keras.api.models import Sequential
+from keras.layers import RandomBrightness, RandomContrast
+from keras.models import Sequential
 import numpy as np
 import cvzone
 
